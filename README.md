@@ -17,9 +17,9 @@ This program can map barcode of stereomics-seq to stereomics-chip
 ```
 usage: ST_BarcodeMap-0.0.1 --in=string --out=string [options] ... 
 options:
-  -i, --in                   the first sequencing fastq file path of read or bin file of first sequencing (string)
-  -I, --in1                  the second sequencing fastq file path of read1 or bin file of second sequencing (string [=])
-      --in2                  the second sequencing fastq file or bin file path of read1 (string [=])
+    -i, --in                 mask file of stereomics chip or input barcode_list file (string)
+  -I, --in1                  the second sequencing fastq file path of read1 (string [=])
+      --in2                  the second sequencing fastq file path of read2 (string [=])
       --barcodeReadsCount    the mapped barcode list file with reads count per barcode. (string [=])
   -O, --out                  output file prefix or fastq output file of read1 (string)
       --out2                 fastq output file of read2 (string [=])
@@ -28,11 +28,11 @@ options:
   -z, --compression          compression level for gzip output (1 ~ 9). 1 is fastest, 9 is smallest, default is 4. (int [=4])
       --unmappedOut          output file path for barcode unmapped reads of read1, if this path isn't given, discard the reads. (string [=])
       --unmappedOut2         output file path for barcode unmapped reads of read2, if this path isn't given, discard the reads. (string [=])
-  -l, --barcodeLen           barcode length, default  is 25 (int [=25])
+  -l, --barcodeLen           barcode length, default is 25 (int [=25])
       --barcodeStart         barcode start position (int [=0])
       --umiRead              read1 or read2 contains the umi sequence. (int [=1])
       --barcodeRead          read1 or read2 contains the barcode sequence. (int [=1])
-      --umiStart             umi start position. if the start postion is negative number, no umi sequence will be found (int [=40])
+      --umiStart             umi start position. if the start postion is negative number, no umi sequence will be found (int [=25])
       --umiLen               umi length. (int [=10])
       --fixedSequence        fixed sequence in read1 that will be filtered. (string [=])
       --fixedStart           fixed sequence start position can by specied. (int [=-1])
