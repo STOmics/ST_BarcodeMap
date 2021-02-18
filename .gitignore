@@ -34,8 +34,8 @@ ST_BarcodeMap
 *.out
 *.app
 
-#make file
-Makefile
+#.vs file
+.vs/*
 
 #test
 test/*
