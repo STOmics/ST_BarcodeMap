@@ -2,7 +2,7 @@
 This program can map barcode of stereomics-seq to stereomics-chip
 
 ## Compile
-### Platform& Environment
+### Platform & Environment
 * linux
 * gcc-8.2.0
 
@@ -12,12 +12,18 @@ This program can map barcode of stereomics-seq to stereomics-chip
 | boost         | >=1.73.0 | serialize hashmap                                          |
 | zlib          | >=1.2.11 | file compressing and decompressing                         |
 
+## make the runnable program
+```
+cd ST_Barcode_Map directory
+make
+```
+
 ## Run
 ### Usage
 ```
 usage: ST_BarcodeMap-0.0.1 --in=string --out=string [options] ... 
 options:
-    -i, --in                 mask file of stereomics chip or input barcode_list file (string)
+  -i, --in                   mask file of stereomics chip or input barcode_list file (string)
   -I, --in1                  the second sequencing fastq file path of read1 (string [=])
       --in2                  the second sequencing fastq file path of read2 (string [=])
       --barcodeReadsCount    the mapped barcode list file with reads count per barcode. (string [=])
@@ -45,4 +51,8 @@ options:
   -w, --thread               number of thread that will be used to run. (int [=2])
   -V, --verbose              output verbose log information (i.e. when every 1M reads are processed).
   -?, --help                 print this message
+  ```
+  ### run example
+  ```
+  ST_BarcodeMap-0.0.1 --in chipid.h5 --in1 read1.fq.gz --in2 read2.fq.gz --out combine_read.fq.gz --mismatch 1 --thread 2
   ```
