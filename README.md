@@ -11,6 +11,7 @@ This program can map barcode of stereomics-seq to stereomics-chip
 | ------------- | -------- | ---------------------------------------------------------- |
 | boost         | >=1.73.0 | serialize hashmap                                          |
 | zlib          | >=1.2.11 | file compressing and decompressing                         |
+| hdf5          | >=1.10.7 | hdf5 format mask file read                                 |
 
 ## make the runnable program
 ```
