@@ -1,4 +1,4 @@
-# ST_Barcode_map
+# ST_BarcodeMap
 This program can map barcode of stereomics-seq to stereomics-chip
 
 ## Compile
