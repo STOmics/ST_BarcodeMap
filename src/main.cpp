@@ -31,7 +31,7 @@ int main(int argc, char* argv[]) {
 	cmd.add<int>("compression", 'z', "compression level for gzip output (1 ~ 9). 1 is fastest, 9 is smallest, default is 4.", false, 4);
 	cmd.add<string>("unmappedOut", 0, "output file path for barcode unmapped reads of read1, if this path isn't given, discard the reads.", false, "");
 	cmd.add<string>("unmappedOut2", 0, "output file path for barcode unmapped reads of read2, if this path isn't given, discard the reads.", false, "");
-	cmd.add<int>("barcodeLen", 'l', "barcode length, default is 25", false, 25);
+	cmd.add<uint32_t>("barcodeLen", 'l', "barcode length, default is 25", false, 25);
 	cmd.add<int>("barcodeStart", 0, "barcode start position", false, 0);
 	cmd.add<int>("umiRead", 0, "read1 or read2 contains the umi sequence.", false, 1);
 	cmd.add<int>("barcodeRead", 0, "read1 or read2 contains the barcode sequence.", false, 1);
@@ -42,8 +42,6 @@ int main(int argc, char* argv[]) {
 	cmd.add<string>("fixedSequenceFile", 0, "file contianing the fixed sequences and the start position, one sequence per line in the format: TGCCTCTCAG\t-1. when position less than 0, means wouldn't specified", false, "");
 	cmd.add<long>("mapSize", 0, "bucket size of the new unordered_map.", false, 0);
 	cmd.add<int>("mismatch", 0, "max mismatch is allowed for barcode overlap find.", false, 0);
-	cmd.add<string>("rc", 0, "true means get the reverse complement barcode to barcode map. all means get both forward and reverse complement barcode to barcode map", false, "false");
-	cmd.add<string>("readidSep", 0, "number of characters will be trimed from readid to get read position in slide. If not given this will be automatically get from fastq file.", false, "/");
 	cmd.add<int>("action", 0, "chose one action you want to run [map_barcode_to_slide = 1, merge_barcode_list = 2].", false, 1);
 	cmd.add<int>("thread", 'w', "number of thread that will be used to run.", false, 2);
 	cmd.add("verbose", 'V', "output verbose log information (i.e. when every 1M reads are processed).");
@@ -59,13 +57,12 @@ int main(int argc, char* argv[]) {
 	opt.in = cmd.get<string>("in");
 	opt.out = cmd.get<string>("out");
 	opt.compression = cmd.get<int>("compression");
-	opt.barcodeLen = cmd.get<int>("barcodeLen");
+	opt.barcodeLen = cmd.get<uint32_t>("barcodeLen");
 	opt.barcodeStart = cmd.get<int>("barcodeStart");
 	opt.mapSize = cmd.get<long>("mapSize");
 	opt.actionInt = cmd.get<int>("action");
 	opt.verbose = cmd.exist("verbose");
 	opt.thread = cmd.get<int>("thread");
-	opt.rcString = cmd.get<string>("rc");
 	opt.rc = opt.transRC(opt.rcString);
 	opt.report = cmd.get<string>("report");
 	opt.transBarcodeToPos.in = cmd.get < string >("in");
