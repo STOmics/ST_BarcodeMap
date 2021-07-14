@@ -24,7 +24,7 @@ public:
     ~ChipMaskHDF5();
 
     void creatFile();
-    herr_t writeDataSet(std::string chipID, slideRange& sliderange, unordered_map<uint64, Position1>& bpMap, int BarcodeLen, int segment, int slidePitch, uint compressionLevel = 6, int index = 1);
+    herr_t writeDataSet(std::string chipID, slideRange& sliderange, unordered_map<uint64, Position1>& bpMap, uint32_t BarcodeLen, uint8_t segment, uint32_t slidePitch, uint compressionLevel = 6, int index = 1);
     void openFile();
     void readDataSet(unordered_map<uint64, Position1>& bpMap, int index = 1); 
 
