@@ -126,9 +126,9 @@ public:
 	string report;
 	//compression level for gzip output
 	int compression;
-	int barcodeLen;
+	uint32_t barcodeLen;
 	int barcodeStart;
-	int barcodeSegment;
+	uint8_t barcodeSegment;
 	int turnFovDegree;
 	string platform;
 	string chipID;

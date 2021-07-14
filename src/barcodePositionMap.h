@@ -66,7 +66,7 @@ public:
 	//rc==0 only get forward barcode, rc==1 noly get reverse complement barcode, rc==2 get both forward and reverse complement barcode
 	int rc;
 	slideRange sliderange;
-	int slidePitch=500;
+	uint32_t slidePitch=500;
 	//uint64 polyTint;
 };
 

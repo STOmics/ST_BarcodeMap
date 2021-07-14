@@ -68,20 +68,22 @@ void BarcodePositionMap::dumpbpmap(string& mapOutFile) {
 	time_t start = time(NULL);
 	cout << "##########dump barcodeToPosition map begin..." << endl;
 	if (ends_with(mapOutFile, ".bin")) {
+		unordered_map<uint64, Position1>::iterator mapIter = bpmap.begin();
 		bpmap.reserve(bpmap.size());
 		ofstream writer(mapOutFile, ios::out | ios::binary);
-		boost::archive::binary_oarchive oa(writer);
-		oa << bpmap;
-		//while (mapIter != bpmap.end()) {
-		//	writer.write((char*)&mapIter->first, sizeof(uint64));
-		//	writer.write((char*)&mapIter->second, sizeof(Position));
-		//	mapIter++;
-		//}
+		//boost::archive::binary_oarchive oa(writer);
+		//oa << bpmap;
+		while (mapIter != bpmap.end()) {
+			writer.write((char*)&mapIter->first, sizeof(uint64));
+			writer.write((char*)&mapIter->second, sizeof(uint32));
+			writer.write((char*)&mapIter->second, sizeof(uint32));
+			mapIter++;
+		}
 		writer.close();
 	}else if (ends_with(mapOutFile, "h5") || ends_with(mapOutFile, "hdf5")){
 		ChipMaskHDF5 chipMaskH5(mapOutFile);
 		chipMaskH5.creatFile();
-		int segment = mOptions->barcodeSegment;
+		uint8_t segment = mOptions->barcodeSegment;
 		if (mOptions->rc == 2){
 			segment *= 2;
 		}
@@ -115,13 +117,16 @@ void BarcodePositionMap::loadbpmap()
 		if (! mapReader.is_open()){
 			throw invalid_argument("Could not open the file: " + barcodePositionMapFile);
 		}
-		boost::archive::binary_iarchive ia(mapReader);
-		ia >> bpmap;
-		//while (!mapReader.eof()) {
-		//	mapReader.read((char*)&barcodeInt, sizeof(barcodeInt));
-		//	mapReader.read((char*)&position, sizeof(position));
-		//	bpmap[barcodeInt] = position;
-		//}
+		//boost::archive::binary_iarchive ia(mapReader);
+		//ia >> bpmap;
+		uint64 barcodeInt;
+		Position1 position;
+		while (!mapReader.eof()) {
+			mapReader.read((char*)&barcodeInt, sizeof(barcodeInt));
+			mapReader.read((char*)&position.x, sizeof(position.x));
+			mapReader.read((char*)&position.y, sizeof(position.y));
+			bpmap[barcodeInt] = position;
+		}
 		mapReader.close();
 	}
 	else if (ends_with(barcodePositionMapFile, "h5") || ends_with(barcodePositionMapFile, "hdf5")){
