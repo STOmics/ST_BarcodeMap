@@ -8,6 +8,7 @@
 #include "barcodeToPositionMulti.h"
 #include "barcodeToPositionMultiPE.h"
 #include "barcodeListMerge.h"
+#include "chipMaskFormatChange.h"
 #include <mutex>
 
 string command;
@@ -39,10 +40,11 @@ int main(int argc, char* argv[]) {
 	cmd.add<int>("umiLen", 0, "umi length.", false, 10);
 	cmd.add<string>("fixedSequence", 0, "fixed sequence in read1 that will be filtered.", false, "");
 	cmd.add<int>("fixedStart", 0, "fixed sequence start position can by specied.", false, -1);
+	cmd.add<int>("barcodeSegment", 0, "barcode segment for every position on the stereo-chip.", false, 1);
 	cmd.add<string>("fixedSequenceFile", 0, "file contianing the fixed sequences and the start position, one sequence per line in the format: TGCCTCTCAG\t-1. when position less than 0, means wouldn't specified", false, "");
 	cmd.add<long>("mapSize", 0, "bucket size of the new unordered_map.", false, 0);
 	cmd.add<int>("mismatch", 0, "max mismatch is allowed for barcode overlap find.", false, 0);
-	cmd.add<int>("action", 0, "chose one action you want to run [map_barcode_to_slide = 1, merge_barcode_list = 2].", false, 1);
+	cmd.add<int>("action", 0, "chose one action you want to run [map_barcode_to_slide = 1, merge_barcode_list = 2, mask_format_change = 3].", false, 1);
 	cmd.add<int>("thread", 'w', "number of thread that will be used to run.", false, 2);
 	cmd.add("verbose", 'V', "output verbose log information (i.e. when every 1M reads are processed).");
 
@@ -63,8 +65,8 @@ int main(int argc, char* argv[]) {
 	opt.actionInt = cmd.get<int>("action");
 	opt.verbose = cmd.exist("verbose");
 	opt.thread = cmd.get<int>("thread");
-	opt.rc = opt.transRC(opt.rcString);
 	opt.report = cmd.get<string>("report");
+	opt.barcodeSegment = cmd.get<int>("barcodeSegment");
 	opt.transBarcodeToPos.in = cmd.get < string >("in");
 	opt.transBarcodeToPos.in1 = cmd.get<string>("in1");
 	opt.transBarcodeToPos.in2 = cmd.get<string>("in2");
@@ -103,6 +105,9 @@ int main(int argc, char* argv[]) {
 	}else if (opt.actionInt == 2) {
 		BarcodeListMerge barcodeListMerge(&opt);
 		barcodeListMerge.mergeBarcodeLists();
+	}else if (opt.actionInt == 3) {
+		ChipMaskFormatChange chipMaskFormatChange(&opt);
+		chipMaskFormatChange.change();
 	}
 	else {
 		cerr << endl << "wrong action has been choosed." << endl;
