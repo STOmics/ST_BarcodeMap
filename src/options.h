@@ -116,7 +116,7 @@ public:
 	bool getIsSeq500(string& platform);
 	void setFovRange(string fovRange);
 public:
-	enum actions { map_barcode_to_slide = 1, merge_barcode_list = 2 } action;
+	enum actions { map_barcode_to_slide = 1, merge_barcode_list = 2, mask_format_change = 3 } action;
 	int actionInt = 1;
 	// file name of first sequencing read
 	string in;
