@@ -11,7 +11,7 @@
 #define CDIM0 1537
 #define CDIM1 1537
 #define DATASETNAME "bpMatrix_"
-#define ATTRIBUTEDIM 6   //rows, cols, rowShift, colShift, barcodeLength, slide pitch
+#define ATTRIBUTEDIM 6   //rowShift, colShift, barcodeLength, slide pitch
 #define ATTRIBUTEDIM1 2
 #define ATTRIBUTENAME "dnbInfo"
 #define ATTRIBUTENAME1 "chipInfo"

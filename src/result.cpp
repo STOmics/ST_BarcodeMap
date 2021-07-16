@@ -88,9 +88,9 @@ void Result::print()
 	double umiQ20 = 0;
 	double umiQ30 = 0;
 	if (mOptions->transBarcodeToPos.umiLen>0){
-		umiQ10 = (double)mBarcodeProcessor->umiQ10 / (double)(mBarcodeProcessor->totalReads * mOptions->transBarcodeToPos.umiLen) * 100;
-		umiQ20 = (double)mBarcodeProcessor->umiQ20 / (double)(mBarcodeProcessor->totalReads * mOptions->transBarcodeToPos.umiLen) * 100;
-		umiQ30 = (double)mBarcodeProcessor->umiQ30 / (double)(mBarcodeProcessor->totalReads * mOptions->transBarcodeToPos.umiLen) * 100;
+		umiQ10 = (double)mBarcodeProcessor->umiQ10 / (double)(mBarcodeProcessor->mMapToSlideRead * mOptions->transBarcodeToPos.umiLen) * 100;
+		umiQ20 = (double)mBarcodeProcessor->umiQ20 / (double)(mBarcodeProcessor->mMapToSlideRead * mOptions->transBarcodeToPos.umiLen) * 100;
+		umiQ30 = (double)mBarcodeProcessor->umiQ30 / (double)(mBarcodeProcessor->mMapToSlideRead * mOptions->transBarcodeToPos.umiLen) * 100;
 	}
 	
 	cout << "Q10_bases_in_barcode:\t" << barcodeQ10 << "%" << endl;
