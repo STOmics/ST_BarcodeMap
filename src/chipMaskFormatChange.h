@@ -33,8 +33,8 @@ public:
     unordered_map<uint64, Position1> bpmap;
     int barcodeStart;
     int barcodeLen;
-    uint32 minX = 0;
-    uint32 minY = 0;
+    uint32 minX = OUTSIDE_DNB_POS_COL;
+    uint32 minY = OUTSIDE_DNB_POS_ROW;
     uint32 maxX = 0;
     uint32 maxY = 0;
     uint32_t slidePitch=500;
