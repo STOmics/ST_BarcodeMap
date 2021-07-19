@@ -126,6 +126,7 @@ void ChipMaskFormatChange::dumpbpmap() {
 			segment *= 2;
 		}
 		slideRange sliderange = {minX, maxX, minY, maxY};
+		cout << "slide range: " << minX << "\t" << maxX << "\t" << minY << "\t" << maxY << endl;
 		chipMaskH5.writeDataSet(mOptions->chipID, sliderange, bpmap, barcodeLen, segment, slidePitch, mOptions->compression);
 	}
 	else {
