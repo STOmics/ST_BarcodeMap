@@ -113,12 +113,12 @@ void ChipMaskHDF5::readDataSet(unordered_map<uint64, Position1>& bpMap, int inde
 
     //read attribute of the dataset
     
-    uint32 attributeValues[ATTRIBUTEDIM];
-    hid_t attributeID = H5Aopen_by_name(fileID, datasetName.c_str(), ATTRIBUTENAME, H5P_DEFAULT, H5P_DEFAULT);
-    status = H5Aread(attributeID, H5T_NATIVE_UINT32, &attributeValues[0]);
-    uint32 rowOffset = attributeValues[0];
-    uint32 colOffset = attributeValues[1];
-    cout << "row offset: " << rowOffset << "\tcol offset: "<< colOffset << endl;
+    //uint32 attributeValues[ATTRIBUTEDIM];
+    //hid_t attributeID = H5Aopen_by_name(fileID, datasetName.c_str(), ATTRIBUTENAME, H5P_DEFAULT, H5P_DEFAULT);
+    //status = H5Aread(attributeID, H5T_NATIVE_UINT32, &attributeValues[0]);
+    //uint32 rowOffset = attributeValues[0];
+    //uint32 colOffset = attributeValues[1];
+    //cout << "row offset: " << rowOffset << "\tcol offset: "<< colOffset << endl;
 
     hid_t dspaceID = H5Dget_space(datasetID);
     hid_t dtype_id = H5Dget_type(datasetID);
@@ -160,7 +160,7 @@ void ChipMaskHDF5::readDataSet(unordered_map<uint64, Position1>& bpMap, int inde
         //bpMatrix[r] = new uint64*[dims[1]];
         for (uint32 c = 0; c< dims[1]; c++){
             //bpMatrix[r][c] = bpMatrix_buffer + r*dims[1]*dims[2] + c*dims[2];
-            Position1 position = {c+colOffset, r+rowOffset};
+            Position1 position = {c, r};
             if (rank >= 3 ){               
                 segment = dims[2];
                 for (int s = 0; s<segment; s++){
@@ -196,5 +196,5 @@ void ChipMaskHDF5::readDataSet(unordered_map<uint64, Position1>& bpMap, int inde
     */
 
     delete[] bpMatrix_buffer;
-    delete[] bpMatrix;
+    //delete[] bpMatrix;
 }
