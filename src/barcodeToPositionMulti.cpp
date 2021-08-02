@@ -20,9 +20,9 @@ BarcodeToPositionMulti::BarcodeToPositionMulti(Options* opt)
 
 BarcodeToPositionMulti::~BarcodeToPositionMulti()
 {
-	if (fixedFilter) {
-		delete fixedFilter;
-	}
+	//if (fixedFilter) {
+	//	delete fixedFilter;
+	//}
 	//unordered_map<uint64, Position*>().swap(misBarcodeMap);
 }
 
