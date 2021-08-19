@@ -26,48 +26,28 @@ public:
 	BarcodePositionMap(Options* opt);
 	~BarcodePositionMap();
 private:
-	void initiate();
-	void getSuffixLen();
-	int readQualityStat(string& readQ, int index);
-	bool barcodeFilter(string& readSeq, int index);
+	void rangeRefresh(Position1& position);
 public:
 	long getBarcodeTypes();
 	void dumpbpmap(string& mapOutFile);
-	void loadbpmap();	
+	void loadbpmap();
 	unordered_map<uint64, Position1>* getBpmap() { return &bpmap; };
 public:
 	unordered_map<uint64,  Position1> bpmap;
-	long* totalReads;
-	long* readsWithN;
-	long* dupReads;
-	long* ESTdupReads;
-	long* readsWithoutPos;
-	long** polyReads;
-	long* readsQ10;
-	long* readsQ20;
-	long* readsQ30;
-	long* totalBase;
-	long* totalBarcodes;
-	int inFastqNumber;
-	vector<string> inFile;
 	Options* mOptions;
 	set<uint64> dupBarcode;
+	long overlapBarcodes;
+	long dupBarcodes;
 	string maskFile;
 	int barcodeStart;
 	int barcodeLen;
 	int segment;
-	int turnFovDegree;
-	bool isSeq500;	
-	string firstFastq;
-	string readidSep;
-	int suffixLen = 0;
-	int readLen;
-	int indexLen = 8;
-	//rc==0 only get forward barcode, rc==1 noly get reverse complement barcode, rc==2 get both forward and reverse complement barcode
-	int rc;
-	slideRange sliderange;
-	uint32_t slidePitch=500;
-	//uint64 polyTint;
+	uint32 minX = OUTSIDE_DNB_POS_COL;
+    uint32 minY = OUTSIDE_DNB_POS_ROW;
+    uint32 maxX = 0;
+    uint32 maxY = 0;
+	vector<std::string> inMasks;
+	int slidePitch = 500;
 };
 
 #endif // ! BARCODEPOSITIONMAP_H

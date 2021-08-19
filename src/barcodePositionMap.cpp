@@ -3,19 +3,11 @@
 BarcodePositionMap::BarcodePositionMap(Options* opt)
 {
 	mOptions = opt;
-	split(opt->in, inFile, ",");
 	maskFile = opt->maskFile;
 	barcodeStart = opt->barcodeStart;
 	barcodeLen = opt->barcodeLen;
 	segment = opt->barcodeSegment;
-	turnFovDegree = opt->turnFovDegree;
-	isSeq500 = opt->isSeq500;
-	rc = opt->rc;
-	//polyTint = getPolyTint(barcodeLen);
-	readidSep = opt->barcodeStat.readidSep;
-	inFastqNumber = inFile.size();
-	firstFastq = *inFile.begin();
-	initiate();
+	split(opt->in, inMasks, ",");
 	loadbpmap();
 }
 
@@ -25,38 +17,19 @@ BarcodePositionMap::~BarcodePositionMap()
 	unordered_map<uint64, Position1>().swap(bpmap);
 	dupBarcode.clear();
 	set<uint64>().swap(dupBarcode);
-	inFile.clear();
-	vector<string>().swap(inFile);
-	delete[] totalReads;
-	delete[] readsWithN;
-	delete[] dupReads;
-	delete[] ESTdupReads;
-	for (int i=0; i<inFastqNumber; i++){
-		delete[] polyReads[i];
-	}
-	delete[] polyReads;
-	delete[] readsQ10;
-	delete[] readsQ20;
-	delete[] readsQ30;
-	delete[] totalBase;
-	delete[] totalBarcodes;
 }
 
-void BarcodePositionMap::initiate(){
-	totalReads = new long[inFastqNumber]();
-	readsWithN = new long[inFastqNumber]();
-	readsWithoutPos = new long[inFastqNumber]();
-	polyReads = new long*[inFastqNumber]();
-	for (int i=0; i<inFastqNumber; i++){
-		polyReads[i] = new long[4]();
+void BarcodePositionMap::rangeRefresh(Position1& position){
+	if (position.x < minX){
+		minX  = position.x;
+	}else if (position.x > maxX){
+		maxX = position.x;
 	}
-	dupReads = new long[inFastqNumber]();
-	ESTdupReads = new long[inFastqNumber]();
-	readsQ10 = new long[inFastqNumber]();
-	readsQ20 = new long[inFastqNumber]();
-	readsQ30 = new long[inFastqNumber]();
-	totalBase = new long[inFastqNumber]();
-	totalBarcodes = new long[inFastqNumber]();
+	if (position.y < minY){
+		minY = position.y;
+	}else if (position.y > maxY){
+		maxY = position.y;
+	}
 }
 
 long BarcodePositionMap::getBarcodeTypes()
@@ -87,6 +60,7 @@ void BarcodePositionMap::dumpbpmap(string& mapOutFile) {
 		if (mOptions->rc == 2){
 			segment *= 2;
 		}
+		slideRange sliderange{minX, maxX, minY, maxY};
 		chipMaskH5.writeDataSet(mOptions->chipID, sliderange, bpmap, barcodeLen, segment, slidePitch, mOptions->compression);
 	}
 	else {
@@ -104,7 +78,7 @@ void BarcodePositionMap::dumpbpmap(string& mapOutFile) {
 void BarcodePositionMap::loadbpmap()
 {
 	time_t start = time(NULL);
-	string barcodePositionMapFile = inFile.at(0);
+	string barcodePositionMapFile = inMasks.at(0);
 	if (! file_exists(barcodePositionMapFile)){
 		cerr << "barcodePositionMapFile does not exists: " << barcodePositionMapFile <<endl;
 		exit(1);
@@ -126,6 +100,7 @@ void BarcodePositionMap::loadbpmap()
 			mapReader.read((char*)&position.x, sizeof(position.x));
 			mapReader.read((char*)&position.y, sizeof(position.y));
 			bpmap[barcodeInt] = position;
+			rangeRefresh(position);
 		}
 		mapReader.close();
 	}
@@ -161,6 +136,7 @@ void BarcodePositionMap::loadbpmap()
 			}
 			barcodeInt = seqEncode(splitLine[0].c_str(), barcodeStart, barcodeLen);
 			bpmap[barcodeInt] = position;
+			rangeRefresh(position);
 			//cout << "barcode: " << barcodeInt << " position: " << position.x << " " << position.y <<endl;
 		}
 		//cout << "bpmap load suceessfully." << endl;
@@ -169,76 +145,5 @@ void BarcodePositionMap::loadbpmap()
 	cout << "###############load barcodeToPosition map finished, time used: " << time(NULL) - start << " seconds" << endl;
 	cout << resetiosflags(ios::fixed) << setprecision(2);
 	cout << "getBarcodePositionMap_uniqBarcodeTypes: " << bpmap.size() << endl;
-}
-
-void BarcodePositionMap::getSuffixLen(){
-	FastqReader reader(firstFastq);
-	Read* read = reader.read();
-	string readName = read->mName;
-	int sepPos = readName.find(readidSep);
-	if (sepPos!=readName.npos){
-		suffixLen = readName.size() - sepPos;
-	}else{
-		suffixLen = 0;
-	}
-	
-}
-
-int BarcodePositionMap::readQualityStat(string& readQ, int index){
-	int lowQ10 = 0;
-	for (int i = 0; i < readQ.size(); i++){
-		totalBase[index]++;
-		if (readQ[i] >= 30+33){
-			readsQ30[index]++;
-			readsQ20[index]++;
-			readsQ10[index]++;
-		}else if (readQ[i] >= 20+33){
-			readsQ20[index]++;
-			readsQ10[index]++;
-		}else if (readQ[i] >= 10+33){
-			readsQ10[index]++;
-		}else{
-			lowQ10++;
-		}
-	}
-	return lowQ10;
-}
-
-/**
- * baseCount: ['A', 'C', 'T', 'G']
-*/
-bool BarcodePositionMap::barcodeFilter(string& readSeq, int index){
-	int baseCount[5] = {0, 0, 0, 0, 0};
-	int readLen = readSeq.size();
-	for (int i = 0; i < readLen; i++){
-		switch (readSeq[i]){
-			case 'A':
-				baseCount[0]++;
-				break;
-			case 'C':
-				baseCount[1]++;
-				break;
-			case 'T':
-				baseCount[2]++;
-				break;
-			case 'G':
-				baseCount[3]++;
-				break;
-			default:
-				baseCount[4]++;
-		}
-	}
-	if (baseCount[4]>0){
-		readsWithN[index]++;
-		return true;
-	}
-	for (int i=0; i<4; i++){
-		float polyRate = baseCount[i]/readLen;
-		if (polyRate>=0.8){
-			polyReads[index][i]++;
-			return true;
-		}
-	}
-	return false;
 }
 

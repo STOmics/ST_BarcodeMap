@@ -12,6 +12,7 @@
 #include "util.h"
 #include "chipMaskHDF5.h"
 #include "options.h"
+#include "barcodePositionMap.h"
 
 using namespace std;
 
@@ -22,22 +23,10 @@ public:
     ~ChipMaskFormatChange();
 
     void change();
-    void loadbpmap();
-    void dumpbpmap();
-private:
-    void rangeRefresh(Position1& position);
+    void H5ToBin();
 public:
     Options* mOptions;
-    std::string inMask;
-    std::string outMask;
-    unordered_map<uint64, Position1> bpmap;
-    int barcodeStart;
-    int barcodeLen;
-    uint32 minX = OUTSIDE_DNB_POS_COL;
-    uint32 minY = OUTSIDE_DNB_POS_ROW;
-    uint32 maxX = 0;
-    uint32 maxY = 0;
-    uint32_t slidePitch=500;
+    BarcodePositionMap* bpmap;
 };
 
 #endif // ! CHIPMASKFORMATCHANGE_H
