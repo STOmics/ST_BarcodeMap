@@ -9,6 +9,7 @@
 #include "barcodeToPositionMultiPE.h"
 #include "barcodeListMerge.h"
 #include "chipMaskFormatChange.h"
+#include "chipMaskMerge.h"
 #include <mutex>
 
 string command;
@@ -44,7 +45,7 @@ int main(int argc, char* argv[]) {
 	cmd.add<string>("fixedSequenceFile", 0, "file contianing the fixed sequences and the start position, one sequence per line in the format: TGCCTCTCAG\t-1. when position less than 0, means wouldn't specified", false, "");
 	cmd.add<long>("mapSize", 0, "bucket size of the new unordered_map.", false, 0);
 	cmd.add<int>("mismatch", 0, "max mismatch is allowed for barcode overlap find.", false, 0);
-	cmd.add<int>("action", 0, "chose one action you want to run [map_barcode_to_slide = 1, merge_barcode_list = 2, mask_format_change = 3].", false, 1);
+	cmd.add<int>("action", 0, "chose one action you want to run [map_barcode_to_slide = 1, merge_barcode_list = 2, mask_format_change = 3, mask_merge = 4].", false, 1);
 	cmd.add<int>("thread", 'w', "number of thread that will be used to run.", false, 2);
 	cmd.add("verbose", 'V', "output verbose log information (i.e. when every 1M reads are processed).");
 
@@ -108,6 +109,9 @@ int main(int argc, char* argv[]) {
 	}else if (opt.actionInt == 3) {
 		ChipMaskFormatChange chipMaskFormatChange(&opt);
 		chipMaskFormatChange.change();
+	}else if (opt.actionInt == 4) {
+		ChipMaskMerge chipMaskMerge(&opt);
+		chipMaskMerge.maskMerge();
 	}
 	else {
 		cerr << endl << "wrong action has been choosed." << endl;
