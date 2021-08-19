@@ -2,141 +2,83 @@
 
 ChipMaskFormatChange::ChipMaskFormatChange(Options* opt){
     mOptions = opt;
-    inMask = mOptions->in;
-    outMask = mOptions->out;
-    barcodeStart = mOptions->barcodeStart;
-    barcodeLen = mOptions->barcodeLen;
 }
 
 ChipMaskFormatChange::~ChipMaskFormatChange(){
-	bpmap.clear();
-	unordered_map<uint64, Position1>().swap(bpmap);
-}
 
-void ChipMaskFormatChange::rangeRefresh(Position1& position){
-	if (position.x < minX){
-		minX  = position.x;
-	}else if (position.x > maxX){
-		maxX = position.x;
-	}
-	if (position.y < minY){
-		minY = position.y;
-	}else if (position.y > maxY){
-		maxY = position.y;
-	}
 }
 
 void ChipMaskFormatChange::change(){
-	loadbpmap();
-	dumpbpmap();
+	bpmap = new BarcodePositionMap(mOptions);
+	bpmap->dumpbpmap(mOptions->out);
 }
 
-void ChipMaskFormatChange::loadbpmap()
-{
-	time_t start = time(NULL);
-	if (! file_exists(inMask)){
-		cerr << "barcodePositionMapFile does not exists: " << inMask <<endl;
-		exit(1);
-	}
-	
-	cout << "###############load barcodeToPosition map begin..." << endl;
-	//cout << "###############barcode map file: " << barcodePositionMapFile << endl;
-	if (ends_with(inMask, ".bin")) {		
-		ifstream mapReader(inMask, ios::in | ios::binary);
-		if (! mapReader.is_open()){
-			throw invalid_argument("Could not open the file: " + inMask);
-		}
-		//boost::archive::binary_iarchive ia(mapReader);
-		//ia >> bpmap;
-		uint64 barcodeInt;
-		Position1 position;
-		while (!mapReader.eof()) {
-			mapReader.read((char*)&barcodeInt, sizeof(barcodeInt));
-			mapReader.read((char*)&position.x, sizeof(position.x));
-			mapReader.read((char*)&position.y, sizeof(position.y));
-			bpmap[barcodeInt] = position;
-			rangeRefresh(position);
-		}
-		mapReader.close();
-	}
-	else if (ends_with(inMask, "h5") || ends_with(inMask, "hdf5")){
-		ChipMaskHDF5 chipMaskH5(inMask);
-		chipMaskH5.openFile();
-		chipMaskH5.readDataSet(bpmap);
-	}
-	else {
-		uint64 barcodeInt;
-		Position1 position;
-		string line;
-		ifstream mapReader(inMask);
-		while (std::getline(mapReader, line)) {
-			if(line.empty()){
-				cerr << "barcodePositionMap file read finished." << endl;
-				break;
-			}
-			vector<string> splitLine;
-			//std::getline(mapReader, line);
-			split(line, splitLine, "\t");
-			//position.fov_c = fovCol;
-			//position.fov_r = fovRow;
-			if (splitLine.size() < 3){
-				break;
-			}
-			else if (splitLine.size() == 3){
-				position.x = std::stoi(splitLine[1]);
-				position.y = std::stoi(splitLine[2]);
-			}else {
-				position.x = std::stoi(splitLine[3]);
-				position.y = std::stoi(splitLine[4]);
-			}
-			barcodeInt = seqEncode(splitLine[0].c_str(), barcodeStart, barcodeLen);
-			bpmap[barcodeInt] = position;
-			rangeRefresh(position);
-			//cout << "barcode: " << barcodeInt << " position: " << position.x << " " << position.y <<endl;
-		}
-		//cout << "bpmap load suceessfully." << endl;
-		mapReader.close();
-	}
-	cout << "###############load barcodeToPosition map finished, time used: " << time(NULL) - start << " seconds" << endl;
-	cout << resetiosflags(ios::fixed) << setprecision(2);
-	cout << "getBarcodePositionMap_uniqBarcodeTypes: " << bpmap.size() << endl;
+void ChipMaskFormatChange::H5ToBin(){
+	hid_t fileID = H5Fopen(mOptions->in.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    herr_t status;
+	//open dataset with datasetName
+    int index = 1;
+    std::string datasetName = DATASETNAME + std::to_string(index);
+    hid_t datasetID = H5Dopen2(fileID, datasetName.c_str(), H5P_DEFAULT);
+    //read attribute of the dataset
+    uint32 attributeValues[ATTRIBUTEDIM];
+    hid_t attributeID = H5Aopen_by_name(fileID, datasetName.c_str(), ATTRIBUTENAME, H5P_DEFAULT, H5P_DEFAULT);
+    status = H5Aread(attributeID, H5T_NATIVE_UINT32, &attributeValues[0]);
+    uint32 rowOffset = attributeValues[0];
+    uint32 colOffset = attributeValues[1];
+    cout << "row offset: " << rowOffset << "\tcol offset: "<< colOffset << endl;
+
+    hid_t dspaceID = H5Dget_space(datasetID);
+    hid_t dtype_id = H5Dget_type(datasetID);
+    hid_t plistID = H5Dget_create_plist(datasetID);
+    int rank = H5Sget_simple_extent_ndims(dspaceID);
+    hsize_t dims[rank];
+    status = H5Sget_simple_extent_dims(dspaceID, dims, NULL);
+
+    uint64 matrixLen = 1;
+    for (int i = 0 ; i<rank; i++){
+        matrixLen *= dims[i];
+    }
+
+    int segment = 1;
+    if (rank>=3){
+        segment = dims[2];
+    }
+
+    uint64* bpMatrix_buffer = new uint64[matrixLen]();
+    status = H5Dread(datasetID, H5T_NATIVE_UINT64, H5S_ALL, H5S_ALL, H5P_DEFAULT, bpMatrix_buffer);
+    status = H5Aclose(attributeID);
+    status = H5Dclose(datasetID);
+    status = H5Fclose(fileID);
+    
+	ofstream writer(mOptions->out, ios::out | ios::binary);
+    
+    for (uint32 r = 0; r < dims[0]; r++){
+                
+        for (uint32 c = 0; c< dims[1]; c++){
+            Position1 position = {c + colOffset, r + rowOffset};
+            if (rank >= 3 ){               
+                segment = dims[2];
+                for (int s = 0; s<segment; s++){
+                    uint64 barcodeInt = bpMatrix_buffer[r*dims[1]*segment + c*segment + s];
+                    if (barcodeInt == 0){
+                        continue;
+                    }
+                    writer.write((char*)&barcodeInt, sizeof(barcodeInt));
+					writer.write((char*)&position.x, sizeof(position.x));
+					writer.write((char*)&position.y, sizeof(position.y));
+                }
+            }else{
+                uint64 barcodeInt = bpMatrix_buffer[r*dims[1]+c];
+                if (barcodeInt == 0){
+                    continue;
+                }
+                writer.write((char*)&barcodeInt, sizeof(barcodeInt));
+				writer.write((char*)&position.x, sizeof(position.x));
+				writer.write((char*)&position.y, sizeof(position.y));
+            }           
+        }
+    }
+    writer.close();  
 }
 
-void ChipMaskFormatChange::dumpbpmap() {
-	time_t start = time(NULL);
-	cout << "##########dump barcodeToPosition map begin..." << endl;
-	if (ends_with(outMask, ".bin")) {
-		unordered_map<uint64, Position1>::iterator mapIter = bpmap.begin();
-		bpmap.reserve(bpmap.size());
-		ofstream writer(outMask, ios::out | ios::binary);
-		//boost::archive::binary_oarchive oa(writer);
-		//oa << bpmap;
-		while (mapIter != bpmap.end()) {
-			writer.write((char*)&mapIter->first, sizeof(uint64));
-			writer.write((char*)&mapIter->second, sizeof(uint32));
-			writer.write((char*)&mapIter->second, sizeof(uint32));
-			mapIter++;
-		}
-		writer.close();
-	}else if (ends_with(outMask, "h5") || ends_with(outMask, "hdf5")){
-		ChipMaskHDF5 chipMaskH5(outMask);
-		chipMaskH5.creatFile();
-		uint8_t segment = mOptions->barcodeSegment;
-		if (mOptions->rc == 2){
-			segment *= 2;
-		}
-		slideRange sliderange = {minX, maxX, minY, maxY};
-		cout << "slide range: " << minX << "\t" << maxX << "\t" << minY << "\t" << maxY << endl;
-		chipMaskH5.writeDataSet(mOptions->chipID, sliderange, bpmap, barcodeLen, segment, slidePitch, mOptions->compression);
-	}
-	else {
-		ofstream writer(outMask);
-		unordered_map<uint64, Position1>::iterator mapIter = bpmap.begin();
-		while (mapIter != bpmap.end()) {
-			writer << seqDecode(mapIter->first, barcodeLen) << "\t" << mapIter->second.x << "\t" << mapIter->second.y << endl;
-			mapIter++;
-		}
-		writer.close();
-	}	
-	cout << "##########dump barcodeToPosition map finished, time used: " << time(NULL) - start << " seconds" << endl;
-}
