@@ -55,7 +55,6 @@ void ChipMaskMerge::maskMerge(){
                 matrixLen *= dims[i];
             }
 
-            int segment = 1;
             if (rank>=3){
                 segment = dims[2];
             }
@@ -69,10 +68,9 @@ void ChipMaskMerge::maskMerge(){
     
             for (uint32 r = 0; r < dims[0]; r++){
                 
-                for (uint32 c = 0; c< dims[1]; c++){
+                for (uint32 c = 0; c < dims[1]; c++){
                     Position1 position = {c + colOffset, r + rowOffset};
                     if (rank >= 3 ){               
-                        segment = dims[2];
                         for (int s = 0; s<segment; s++){
                             uint64 barcodeInt = bpMatrix_buffer[r*dims[1]*segment + c*segment + s];
                             if (barcodeInt == 0){
@@ -93,6 +91,8 @@ void ChipMaskMerge::maskMerge(){
             rangeRefresh(positionR);
             Position1 positionL = {colOffset, rowOffset};
             rangeRefresh(positionL);
+            cout << "slide range: " << minX << "\t" << maxX << "\t" << minY << "\t" << maxY << endl;
+            cout << "positionL: " << positionL.x << "\t" << positionL.y << "\tpositionR: " << positionR.x << "\t" << positionR.y << endl; 
         }else{
             uint64 barcodeInt;
 		    Position1 position;
@@ -166,12 +166,14 @@ bool ChipMaskMerge::add(uint64 barcodeInt, Position1& position){
 void ChipMaskMerge::rangeRefresh(Position1& position){
 	if (position.x < minX){
 		minX  = position.x;
-	}else if (position.x > maxX){
+    }
+	if (position.x > maxX){
 		maxX = position.x;
 	}
 	if (position.y < minY){
 		minY = position.y;
-	}else if (position.y > maxY){
+    }
+	if (position.y > maxY){
 		maxY = position.y;
 	}
 }
@@ -195,11 +197,12 @@ void ChipMaskMerge::dumpBpmap(){
 	}else if (ends_with(outMask, "h5") || ends_with(outMask, "hdf5")){
 		ChipMaskHDF5 chipMaskH5(outMask);
 		chipMaskH5.creatFile();
-		uint8_t segment = mOptions->barcodeSegment;
-		if (mOptions->rc == 2){
-			segment *= 2;
-		}
+		//uint8_t segment = mOptions->barcodeSegment;
+		//if (mOptions->rc == 2){
+		//	segment *= 2;
+		//}
         slideRange sliderange{minX, maxX, minY, maxY};
+        cout << "minX: " << minX << "\tmaxX: " << maxX << "\tminY: " << minY << "\tmaxY: " << maxY << endl;
 		chipMaskH5.writeDataSet(mOptions->chipID, sliderange, bpmap, barcodeLen, segment, slidePitch, mOptions->compression);
 	}
 	else {
