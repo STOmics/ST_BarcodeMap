@@ -42,6 +42,7 @@ public:
     uint32 maxX = 0;
     uint32 maxY = 0;
     int slidePitch = 500;
+    int segment = 1;
 };
 
 #endif //! CHIPMASKMERGE_H

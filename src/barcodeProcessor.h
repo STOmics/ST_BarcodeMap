@@ -66,6 +66,11 @@ public:
 	long umiQ10 = 0;
 	long umiQ20 = 0;
 	long umiQ30 = 0;
+	long seqQ10 = 0;
+	long seqQ20 = 0;
+	long seqQ30 = 0;
+	long readsWithAdapter = 0;
+	long readWithDnb = 0;
 	long umiQ10FilterReads = 0;
 	long umiNFilterReads = 0;
 	long umiPloyAFilterReads = 0;

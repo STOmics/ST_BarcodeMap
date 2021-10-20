@@ -53,6 +53,12 @@ options:
   -?, --help                 print this message
   ```
   ### run example
+  #### barcode mapping
   ```
   ST_BarcodeMap-0.0.1 --in chipid.h5 --in1 read1.fq.gz --in2 read2.fq.gz --out combine_read.fq.gz --mismatch 1 --thread 2
+  ```
+  #### mask format  change
+  ```
+  ST_BarcodeMap-0.0.1 --in chipid.bin --out chipid.txt --action 3
+  ST_BarcodeMap-0.0.1 --in chipid.h5 --out chipid.txt --action 3
   ```
