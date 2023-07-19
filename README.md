@@ -67,6 +67,7 @@ options:
   ```
   #transfer mask file in binary format into text format
   ST_BarcodeMap-0.0.1 --in mask.bin --out mask.txt --action 3
+
   #transfer mask file in h5ad format into text format
   ST_BarcodeMap-0.0.1 --in mask.h5 --out mask.txt --action 3
   ```
