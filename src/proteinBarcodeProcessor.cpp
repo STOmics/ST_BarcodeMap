@@ -1,6 +1,6 @@
-#include "barcodeProcessor.h"
+#include "proteinBarcodeProcessor.h"
 
-BarcodeProcessor::BarcodeProcessor(Options* opt, unordered_map<uint64, Position1>* mbpmap)
+ProteinBarcodeProcessor::ProteinBarcodeProcessor(Options* opt, unordered_map<uint64, Position1>* mbpmap, unordered_map<uint64, uint16>* mproteinBarcodeMap)
 {
 	mOptions = opt;
 	bpmap = mbpmap;
@@ -8,18 +8,19 @@ BarcodeProcessor::BarcodeProcessor(Options* opt, unordered_map<uint64, Position1
 	barcodeLen = opt->barcodeLen;
 	polyTInt = seqEncode(polyT.c_str(), 0, barcodeLen, mOptions->rc);
 	misMaskGenerate();
+	proteinBarcodeMap = mproteinBarcodeMap;
 }
 
-BarcodeProcessor::BarcodeProcessor()
+ProteinBarcodeProcessor::ProteinBarcodeProcessor()
 {
 }
 
-BarcodeProcessor::~BarcodeProcessor()
+ProteinBarcodeProcessor::~ProteinBarcodeProcessor()
 {
 
 }
 
-bool BarcodeProcessor::process(Read* read1, Read* read2)
+bool ProteinBarcodeProcessor::process(Read* read1, Read* read2)
 {
 	totalReads++;
 	string barcode;
@@ -38,6 +39,8 @@ bool BarcodeProcessor::process(Read* read1, Read* read2)
 
 	if (position != nullptr){
 		mMapToSlideRead++ ;
+		read1->x = position->x;
+		read1->y = position->y;
 		bool umiPassFilter = true;
 		if (mOptions->transBarcodeToPos.umiStart >= 0 && mOptions->transBarcodeToPos.umiLen > 0){
 			pair<string, string> umi;
@@ -47,117 +50,85 @@ bool BarcodeProcessor::process(Read* read1, Read* read2)
 				getUMI(read2, umi, true);
 			}
 			umiPassFilter = umiStatAndFilter(umi);
-			if (!mOptions->transBarcodeToPos.PEout){
-				addPositionToName(read2, position, &umi);
-			}else{
-				addPositionToNames(read1, read2, position, &umi);
-			}
 		}
-		else{
-			if (!mOptions->transBarcodeToPos.PEout){
-				addPositionToName(read2, position);
-			}else{
-				addPositionToNames(read1, read2, position);
-			}
+		bool proteinMatch = false;
+		if (umiPassFilter){
+			proteinMatch = getProteinIndex(read2);
 		}
-		if(! mOptions->transBarcodeToPos.mappedDNBOutFile.empty())
-			addDNB(encodePosition(position->x, position->y));
-
-		return umiPassFilter;
+		return proteinMatch;
 	}
 	return false;
 
 }
 
-void BarcodeProcessor::addPositionToName(Read* r, Position1* position, pair<string, string>* umi)
-{
-	string position_tag = positionToString(position);
-	int readTagPos = r->mName.find("/");
-	string readName;
-	if (readTagPos!=string::npos){
-		readName = r->mName.substr(0, readTagPos);
-	}else{
-		readName = r->mName;
-	}
-	if (umi == NULL)
-		r->mName = readName + "|||CB:Z:" + position_tag;
-	else {
-		r->mName = readName + "|||CB:Z:" + position_tag + "|||UR:Z:" + umi->first+ "|||UY:Z:" + umi->second;
-	}
-}
-
-void BarcodeProcessor::addPositionToNames(Read* r1, Read* r2, Position1* position, pair<string, string>* umi){
-	string position_tag = positionToString(position);
-	int readTagPos = r1->mName.find("/");
-	string readName;
-	if (readTagPos!=string::npos){
-		readName = r1->mName.substr(0, readTagPos);
-	}else{
-		readName = r1->mName;
-	}
-	if (umi == NULL){
-		r1->mName = readName + "|||CB:Z:" + position_tag;
-		if (mOptions->transBarcodeToPos.barcodeRead == 1){
-			r1->trimFront(mOptions->barcodeStart+mOptions->barcodeLen);
-		}else{
-			r2->trimFront(mOptions->barcodeStart+mOptions->barcodeLen);
-		}
-		r2->mName = r1->mName;
-	}else{
-		r1->mName = readName + "|||CB:Z:" + position_tag + "|||UR:Z:" + umi->first+ "|||UY:Z:" + umi->second;
-		if (mOptions->transBarcodeToPos.umiRead == 1 && mOptions->transBarcodeToPos.barcodeRead == 1){
-			int trimStart = mOptions->barcodeStart > mOptions->transBarcodeToPos.umiStart ? mOptions->transBarcodeToPos.umiStart : mOptions->barcodeStart;
-			r1->trimBack(trimStart);
-		}else{
-			r2->trimBack(mOptions->barcodeStart);
-		}
-		r2->mName = r1->mName;
-	}
-}
-
-void BarcodeProcessor::getUMI(Read* r, pair<string, string>& umi, bool isRead2)
+void ProteinBarcodeProcessor::getUMI(Read* r, pair<string, string>& umi, bool isRead2)
 {
 	string umiSeq = r->mSeq.mStr.substr(mOptions->transBarcodeToPos.umiStart, mOptions->transBarcodeToPos.umiLen);
 	string umiQ = r->mQuality.substr(mOptions->transBarcodeToPos.umiStart, mOptions->transBarcodeToPos.umiLen);
 	umi.first = umiSeq;
 	umi.second = umiQ;
+	uint32 umiInt = seqEncode_1(umiSeq.c_str(), 0, mOptions->transBarcodeToPos.umiLen);
+	r->umiInt = umiInt;
 	if (isRead2) {
 		r->mSeq.mStr = r->mSeq.mStr.substr(0, mOptions->transBarcodeToPos.umiStart);
 		r->mQuality = r->mQuality.substr(0, mOptions->transBarcodeToPos.umiStart);
 	}
 }
 
+bool ProteinBarcodeProcessor::getProteinIndex(Read* r, int bStart, int bLen){
+	for (int i = bStart; i<bLen; i++){
+		if (r->mQuality[i] >= q30) {
+			seqQ30++;
+			seqQ20++;
+			seqQ10++;
+		}
+		else if (r->mQuality[i] >= q20) {
+			seqQ20++;
+			seqQ10++;
+		}else if (r->mQuality[i] >= q10) {
+			seqQ10++;
+		}
+	}
+	uint64 barcodeInt = seqEncode(r->mSeq.mStr.c_str(), bStart, bLen);
+	uint16 proteinIndex = getProteinIndex(barcodeInt);
+	r->proteinIndex = proteinIndex;
+	if (proteinIndex != 0xFFFF){
+		readsMatchProtein++;
+		return true;
+	}
+	return false;
+}
 
-void BarcodeProcessor::decodePosition(const uint32 codePos, pair<uint16, uint16>& decodePos)
+void ProteinBarcodeProcessor::decodePosition(const uint32 codePos, pair<uint16, uint16>& decodePos)
 {
 	decodePos.first = codePos >> 16;
 	decodePos.second = codePos & 0x0000FFFF;
 }
 
-void BarcodeProcessor::decodePosition(const uint64 codePos, pair<uint32, uint32>& decodePos)
+void ProteinBarcodeProcessor::decodePosition(const uint64 codePos, pair<uint32, uint32>& decodePos)
 {
 	decodePos.first = codePos >> 32;
 	decodePos.second = codePos & 0x00000000FFFFFFFF;
 }
 
-uint32 BarcodeProcessor::encodePosition(int fovCol, int fovRow)
+uint32 ProteinBarcodeProcessor::encodePosition(int fovCol, int fovRow)
 {
 	uint32 encodePos = (fovCol << 16) | fovRow;
 	return encodePos;
 }
 
-uint64 BarcodeProcessor::encodePosition(uint32 x, uint32 y)
+uint64 ProteinBarcodeProcessor::encodePosition(uint32 x, uint32 y)
 {
 	uint64 encodePos = ((uint64)x << 32) | (uint64)y;
 	return encodePos;
 }
 
-long BarcodeProcessor::getBarcodeTypes()
+long ProteinBarcodeProcessor::getBarcodeTypes()
 {
 	return bpmap->size();
 }
 
-Position1* BarcodeProcessor::getPosition(uint64 barcodeInt)
+Position1* ProteinBarcodeProcessor::getPosition(uint64 barcodeInt)
 {
 	unordered_map<uint64, Position1>::iterator iter = bpmap->find(barcodeInt);
 	if (iter!=bpmap->end()) {
@@ -177,7 +148,7 @@ Position1* BarcodeProcessor::getPosition(uint64 barcodeInt)
 	return nullptr;
 }
 
-Position1* BarcodeProcessor::getPosition(string& barcodeString)
+Position1* ProteinBarcodeProcessor::getPosition(string& barcodeString)
 {
 	int Nindex = getNindex(barcodeString);
 	if (Nindex == -1) {
@@ -196,7 +167,16 @@ Position1* BarcodeProcessor::getPosition(string& barcodeString)
 	return nullptr;
 }
 
-void BarcodeProcessor::misMaskGenerate()
+uint16 ProteinBarcodeProcessor::getProteinIndex(uint64 proteinBarcode){
+	auto iter = proteinBarcodeMap->find(proteinBarcode);
+    if (iter != proteinBarcodeMap->end()){
+        return iter->second;
+    }else{
+        return 0xFFFF ;
+    }
+}
+
+void ProteinBarcodeProcessor::misMaskGenerate()
 {
 	misMaskLen = possibleMis(barcodeLen, mismatch);
 	misMaskLens = new int[mismatch];
@@ -287,20 +267,20 @@ void BarcodeProcessor::misMaskGenerate()
 	}
 }
 
-string BarcodeProcessor::positionToString(Position* position)
+string ProteinBarcodeProcessor::positionToString(Position* position)
 {
 	stringstream positionString;
 	positionString << position->x << "_" << position->y;
 	return positionString.str();
 }
 
-string BarcodeProcessor::positionToString(Position1* position){
+string ProteinBarcodeProcessor::positionToString(Position1* position){
 	stringstream positionString;
 	positionString << position->x << "_" << position->y;
 	return positionString.str();
 }
 
-unordered_map<uint64, Position1>::iterator BarcodeProcessor::getMisOverlap(uint64 barcodeInt)
+unordered_map<uint64, Position1>::iterator ProteinBarcodeProcessor::getMisOverlap(uint64 barcodeInt)
 {
 	uint64 misBarcodeInt;
 	int misCount = 0;
@@ -329,7 +309,7 @@ unordered_map<uint64, Position1>::iterator BarcodeProcessor::getMisOverlap(uint6
 	return bpmap->end();
 }
 
-Position1* BarcodeProcessor::getNOverlap(string& barcodeString, uint8 Nindex)
+Position1* ProteinBarcodeProcessor::getNOverlap(string& barcodeString, uint8 Nindex)
 {
 	//N has the same encode (11) with G
 	int misCount = 0;
@@ -359,7 +339,7 @@ Position1* BarcodeProcessor::getNOverlap(string& barcodeString, uint8 Nindex)
 	return nullptr;
 }
 
-int BarcodeProcessor::getNindex(string& barcodeString)
+int ProteinBarcodeProcessor::getNindex(string& barcodeString)
 {
 	int Nindex = barcodeString.find("N");
 	if (Nindex == barcodeString.npos) {
@@ -371,17 +351,7 @@ int BarcodeProcessor::getNindex(string& barcodeString)
 	return Nindex;
 }
 
-void BarcodeProcessor::addDNB(uint64 barcodeInt)
-{
-	if (mDNB.count(barcodeInt) > 0) {
-		mDNB[barcodeInt]++;
-	}
-	else {
-		mDNB[barcodeInt]++;
-	}
-}
-
-bool BarcodeProcessor::barcodeStatAndFilter(pair<string, string>& barcode)
+bool ProteinBarcodeProcessor::barcodeStatAndFilter(pair<string, string>& barcode)
 {
 	for (int i = 0; i < barcodeLen; i++) {
 		if (barcode.second[i] >= q30) {
@@ -399,7 +369,7 @@ bool BarcodeProcessor::barcodeStatAndFilter(pair<string, string>& barcode)
 	return true;
 }
 
-bool BarcodeProcessor::barcodeStatAndFilter(string& barcodeQ)
+bool ProteinBarcodeProcessor::barcodeStatAndFilter(string& barcodeQ)
 {
 	for (int i = 0; i < barcodeLen; i++) {
 		if (barcodeQ[i] >= q30) {
@@ -417,7 +387,7 @@ bool BarcodeProcessor::barcodeStatAndFilter(string& barcodeQ)
 	return true;
 }
 
-bool BarcodeProcessor::umiStatAndFilter(pair<string, string>& umi)
+bool ProteinBarcodeProcessor::umiStatAndFilter(pair<string, string>& umi)
 {
 	int q10BaseCount = 0;
 	for (int i = 0; i < mOptions->transBarcodeToPos.umiLen; i++) {
@@ -447,25 +417,4 @@ bool BarcodeProcessor::umiStatAndFilter(pair<string, string>& umi)
 	}else{
 		return true;
 	}
-}
-
-void BarcodeProcessor::dumpDNBmap(string& dnbMapFile){
-	ofstream writer;
-	if (ends_with(dnbMapFile, ".bin")) {
-		mDNB.reserve(mDNB.size());
-		writer.open(dnbMapFile, ios::out | ios::binary);
-		boost::archive::binary_oarchive oa(writer);
-		oa << mDNB;
-	}
-	else {
-		writer.open(dnbMapFile);
-		unordered_map<uint64, int>::iterator mapIter = mDNB.begin();
-		while (mapIter != mDNB.end()) {
-			uint32 x = mapIter->first >> 32;
-			uint32 y = mapIter->first & 0x00000000FFFFFFFF;
-			writer << x << "\t" << y << "\t" << mapIter->second << endl;
-			mapIter++;
-		}
-	}
-	writer.close();
 }

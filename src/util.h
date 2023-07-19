@@ -217,6 +217,22 @@ inline uint64 seqEncode(const char* sequence, const int& seqStart, const int& se
 	return k;
 }
 
+inline uint32 seqEncode_1(const char* sequence, const int& seqStart, const int& seqLen, bool isRC=false) {
+	uint32 n = 0;
+	uint32  k = 0;
+	for (int i = seqStart; i < seqLen; i++) {
+		n = (sequence[i] & 6) >> 1; //6:  ob00000110
+		if (isRC) {
+			n = RC_BASE[n];
+			k |= (n << ((seqLen-i-1) * 2));
+		}
+		else {
+			k |= (n << (i * 2));
+		}
+	}
+	return k;
+}
+
 inline string seqDecode(const uint64& seqInt, const int& seqLen) {
 	uint8_t tint ;
 	string seqs ="";
@@ -225,6 +241,23 @@ inline string seqDecode(const uint64& seqInt, const int& seqLen) {
 		seqs.push_back(ATCG_BASES[tint]);
 	}
 	return seqs;	
+}
+
+inline uint64 encodeCIDGene(uint32 coorX, uint32 coorY, uint16 gene)
+{
+    uint64 res = coorX;
+    res = (res << 24) | coorY;
+    res = (res << 16) | gene;
+    return res;
+}
+
+inline void decodeCIDGene(uint64 l, uint32& coorX, uint32& coorY, uint16& gene)
+{
+    gene = l & 0xFFFF;
+    l >>= 16;
+    coorY = l & 0xFFFFFF;
+    l >>= 24;
+    coorX = l & 0xFFFFFF;
 }
 
 inline uint64 getPolyTint(const int& seqLen){
@@ -244,6 +277,17 @@ inline int possibleMis(int bl,  int mismatch) {
 		return 0;
 	}
 }
+
+inline static bool compareBySecond(const pair< uint64, uint32 >& p1,
+                                       const pair< uint64, uint32 >& p2)
+    {
+        if (p1.second > p2.second)
+            return true;
+        else if (p1.second < p2.second)
+            return false;
+        else
+            return p1.first > p2.first;
+    }
 
 extern mutex logmtx;
 inline void loginfo(const string s) {

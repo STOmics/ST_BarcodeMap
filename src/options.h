@@ -105,6 +105,13 @@ public:
 	int fixedStart;
 	//if PEoutput was true, PE reads will be writen to output.
 	bool PEout = false;
+	//if protein barcode list was given, protein barcode sequence in read2 will be processed
+	string proteinBarcodeList;
+	bool protein = false;
+	int proteinBarcodeMismatch = 1;
+	int proteinBarcodeStart = 0;
+	int proteinBarcodeLen = 15;
+
 };
 
 class Options {

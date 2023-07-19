@@ -7,6 +7,7 @@
 #include <iostream>
 #include <fstream>
 #include "sequence.h"
+#include "common.h"
 #include <vector>
 
 using namespace std;
@@ -48,6 +49,10 @@ public:
 	string mStrand;
 	string mQuality;
 	string mBarcode;
+    uint16 proteinIndex;
+    uint32 x;
+    uint32 y;
+    uint32 umiInt;
 	string SEQ500 = "seq500";
 	string DEPSEQT1 = "T1";
 	int dnbIdx[3];

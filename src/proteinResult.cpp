@@ -1,6 +1,6 @@
-#include "result.h"
+#include "proteinResult.h"
 
-Result::Result(Options* opt, int threadId, bool paired)
+ProteinResult::ProteinResult(Options* opt, int threadId, bool paired)
 {
 	mOptions = opt;
 	mPaired = paired;
@@ -18,16 +18,16 @@ Result::Result(Options* opt, int threadId, bool paired)
 	}
 }
 
-Result::~Result()
+ProteinResult::~ProteinResult()
 {
 	delete mBarcodeProcessor;
 }
 
-Result* Result::merge(vector<Result*>& list)
+ProteinResult* ProteinResult::merge(vector<ProteinResult*>& list)
 {
 	if (list.size() == 0)
 		return nullptr;
-	Result* result = new Result(list[0]->mOptions, 0, list[0]->mPaired);
+	ProteinResult* result = new ProteinResult(list[0]->mOptions, 0, list[0]->mPaired);
 	result->setBarcodeProcessor();
 
 	for (int i = 0; i < list.size(); i++) {
@@ -52,26 +52,12 @@ Result* Result::merge(vector<Result*>& list)
 		result->mBarcodeProcessor->umiNFilterReads += list[i]->mBarcodeProcessor->umiNFilterReads;
 		result->mBarcodeProcessor->umiPloyAFilterReads += list[i]->mBarcodeProcessor->umiPloyAFilterReads;
 		result->mBarcodeProcessor->umiQ10FilterReads += list[i]->mBarcodeProcessor->umiQ10FilterReads;
-		
-		if (!list[i]->mOptions->transBarcodeToPos.mappedDNBOutFile.empty()) {
-			unordered_map<uint64, int>::iterator mergeIter;
-			for (auto iter = list[i]->mBarcodeProcessor->mDNB.begin(); iter != list[i]->mBarcodeProcessor->mDNB.end(); iter++) {
-				mergeIter = result->mBarcodeProcessor->mDNB.find(iter->first);
-				if (mergeIter != result->mBarcodeProcessor->mDNB.end()) {
-					mergeIter->second += iter->second;
-				}
-				else {
-					result->mBarcodeProcessor->mDNB[iter->first] = iter->second;
-				}
-			}
-			list[i]->mBarcodeProcessor->mDNB.clear();
-			unordered_map<uint64, int>().swap(list[i]->mBarcodeProcessor->mDNB);
-		}
+		result->mBarcodeProcessor->readsMatchProtein += list[i]->mBarcodeProcessor->readsMatchProtein;	
 	}
 	return result;
 }
 
-void Result::print()
+void ProteinResult::print()
 {
 	
 	cout << fixed << setprecision(2);
@@ -119,25 +105,22 @@ void Result::print()
 	double umiNFilterRate = (double)mBarcodeProcessor->umiNFilterReads/(double)mBarcodeProcessor->totalReads * 100;
 	double umiPolyAFilterRate = (double)mBarcodeProcessor->umiPloyAFilterReads/(double)mBarcodeProcessor->totalReads * 100;
 	double umiQ10FilterRate = (double)mBarcodeProcessor->umiQ10FilterReads/(double)mBarcodeProcessor->totalReads * 100;
+	double readsMatchProteinRate = (double)mBarcodeProcessor->readsMatchProtein/(double(mBarcodeProcessor->mMapToSlideRead - umiTotalFilterReads)) * 100;
 	cout << "umi_filter_reads:\t" << umiTotalFilterReads << "\t" << umiFilterRate << "%" << endl;
 	cout << "umi_with_N_reads:\t" << mBarcodeProcessor->umiNFilterReads << "\t" << umiNFilterRate << "%" << endl;
 	cout << "umi_with_polyA_reads:\t" << mBarcodeProcessor->umiPloyAFilterReads << "\t" << umiPolyAFilterRate << "%" << endl;
 	cout << "umi_with_low_quality_base_reads:\t" << mBarcodeProcessor->umiQ10FilterReads << "\t" << umiQ10FilterRate << "%" << endl;
+	cout << "mapped_proteinBarcode_reads:\t" << mBarcodeProcessor->readsMatchProtein << "\t" << readsMatchProteinRate  << "%" << endl;
 }
 
-void Result::dumpDNBs(string& mapOutFile)
+void ProteinResult::setBarcodeProcessor(unordered_map<uint64, Position1>* bpmap, unordered_map<uint64, uint16>* barcodePositionMap)
 {
-	mBarcodeProcessor->dumpDNBmap(mapOutFile);
+	mBarcodeProcessor = new ProteinBarcodeProcessor(mOptions, bpmap, barcodePositionMap);
 }
 
-void Result::setBarcodeProcessor(unordered_map<uint64, Position1>* bpmap)
+void ProteinResult::setBarcodeProcessor()
 {
-	mBarcodeProcessor = new BarcodeProcessor(mOptions, bpmap);
-}
-
-void Result::setBarcodeProcessor()
-{
-	mBarcodeProcessor = new BarcodeProcessor();
+	mBarcodeProcessor = new ProteinBarcodeProcessor();
 }
 
 

@@ -41,15 +41,16 @@ void BarcodePositionMap::dumpbpmap(string& mapOutFile) {
 	time_t start = time(NULL);
 	cout << "##########dump barcodeToPosition map begin..." << endl;
 	if (ends_with(mapOutFile, ".bin")) {
-		unordered_map<uint64, Position1>::iterator mapIter = bpmap.begin();
-		bpmap.reserve(bpmap.size());
+		//bpmap.reserve(bpmap.size());
 		ofstream writer(mapOutFile, ios::out | ios::binary);
 		//boost::archive::binary_oarchive oa(writer);
 		//oa << bpmap;
+		unordered_map<uint64, Position1>::iterator mapIter = bpmap.begin();
+		
 		while (mapIter != bpmap.end()) {
-			writer.write((char*)&mapIter->first, sizeof(uint64));
-			writer.write((char*)&mapIter->second, sizeof(uint32));
-			writer.write((char*)&mapIter->second, sizeof(uint32));
+			writer.write((char*)&mapIter->first, sizeof(mapIter->first));
+			writer.write((char*)&mapIter->second.x, sizeof(mapIter->second.x));
+			writer.write((char*)&mapIter->second.y, sizeof(mapIter->second.y));
 			mapIter++;
 		}
 		writer.close();

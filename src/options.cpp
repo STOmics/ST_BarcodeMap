@@ -22,8 +22,14 @@ bool Options::validate()
 			exit(-1);
 			//return false;
 		}
-		check_file_valid(transBarcodeToPos.in1);
-		check_file_valid(transBarcodeToPos.in2);
+		vector<string> in1;
+		vector<string> in2;
+		split(transBarcodeToPos.in1, in1);
+		split(transBarcodeToPos.in2, in2);
+		for (int i=0; i< in1.size(); i++){
+			check_file_valid(in1[i]);
+			check_file_valid(in2[i]);
+		}
 	}
 	if (! maskFile.empty()){
 		check_file_valid(maskFile);

@@ -1,17 +1,19 @@
-#include "barcodeToPositionMultiPE.h"
+#include "barcodeToPositionMultiProtein.h"
 
-BarcodeToPositionMultiPE::BarcodeToPositionMultiPE(Options* opt)
+BarcodeToPositionMultiProtein::BarcodeToPositionMultiProtein(Options* opt)
 {
 	mOptions = opt;
 	mProduceFinished = false;
 	mFinishedThreads = 0;
 	mOutStream = NULL;
 	mZipFile = NULL;
-	mWriter1 = NULL;
-	mWriter2 = NULL;
+	mapInserter = NULL;
 	mUnmappedWriter1 = NULL;
 	mUnmappedWriter2 = NULL;
 	bool isSeq500 = opt->isSeq500;
+	split(mOptions->transBarcodeToPos.in1, in1);
+	split(mOptions->transBarcodeToPos.in2, in2);
+	proteinBarcodeMap = new ProteinBarcodeMap(opt->transBarcodeToPos.proteinBarcodeList, opt->transBarcodeToPos.proteinBarcodeMismatch, opt->transBarcodeToPos.proteinBarcodeStart, opt->transBarcodeToPos.proteinBarcodeLen);
 	mbpmap = new BarcodePositionMap(opt);
 	//barcodeProcessor = new BarcodeProcessor(opt, &mbpmap->bpmap);
 	if (!mOptions->transBarcodeToPos.fixedSequence.empty() || !mOptions->transBarcodeToPos.fixedSequenceFile.empty()) {
@@ -20,7 +22,7 @@ BarcodeToPositionMultiPE::BarcodeToPositionMultiPE(Options* opt)
 	}
 }
 
-BarcodeToPositionMultiPE::~BarcodeToPositionMultiPE()
+BarcodeToPositionMultiProtein::~BarcodeToPositionMultiProtein()
 {
 	//if (fixedFilter) {
 	//	delete fixedFilter;
@@ -28,35 +30,32 @@ BarcodeToPositionMultiPE::~BarcodeToPositionMultiPE()
 	//unordered_map<uint64, Position*>().swap(misBarcodeMap);
 }
 
-bool BarcodeToPositionMultiPE::process()
+bool BarcodeToPositionMultiProtein::process()
 {
 	initOutput();
 	initPackRepositoey();
-	std::thread producer(std::bind(&BarcodeToPositionMultiPE::producerTask, this));
+	std::thread producer(std::bind(&BarcodeToPositionMultiProtein::producerTask, this));
 
-	Result** results = new Result*[mOptions->thread];
-	BarcodeProcessor** barcodeProcessors = new BarcodeProcessor*[mOptions->thread];
+	ProteinResult** results = new ProteinResult*[mOptions->thread];
 	for (int t = 0; t < mOptions->thread; t++) {
-		results[t] = new Result(mOptions, true);
-		results[t]->setBarcodeProcessor(mbpmap->getBpmap());
+		results[t] = new ProteinResult(mOptions, true);
+		results[t]->setBarcodeProcessor(mbpmap->getBpmap(), proteinBarcodeMap->getProteinBarcodeMap());
 	}
 
 	std::thread** threads = new thread * [mOptions->thread];
 	for (int t = 0; t < mOptions->thread; t++) {
-		threads[t] = new std::thread(std::bind(&BarcodeToPositionMultiPE::consumerTask, this, results[t]));
+		threads[t] = new std::thread(std::bind(&BarcodeToPositionMultiProtein::consumerTask, this, results[t]));
 	}
 
-	std::thread* writerThread1 = NULL;
-	std::thread* writerThread2 = NULL;
+	std::thread* mapInsertThread = NULL;
 	std::thread* unMappedWriterThread1 = NULL;
 	std::thread* unMappedWriterThread2 = NULL;
-	if(mWriter1 && mWriter2){
-		writerThread1 = new std::thread(std::bind(&BarcodeToPositionMultiPE::writeTask, this, mWriter1));
-		writerThread2 = new std::thread(std::bind(&BarcodeToPositionMultiPE::writeTask, this, mWriter2));
+	if(mapInserter){
+		mapInsertThread = new std::thread(std::bind(&BarcodeToPositionMultiProtein::mapInsertTask, this, mapInserter));
 	}
 	if (mUnmappedWriter1 && mUnmappedWriter2) {
-		unMappedWriterThread1 = new std::thread(std::bind(&BarcodeToPositionMultiPE::writeTask, this, mUnmappedWriter1));
-		unMappedWriterThread2 = new std::thread(std::bind(&BarcodeToPositionMultiPE::writeTask, this, mUnmappedWriter2));
+		unMappedWriterThread1 = new std::thread(std::bind(&BarcodeToPositionMultiProtein::writeTask, this, mUnmappedWriter1));
+		unMappedWriterThread2 = new std::thread(std::bind(&BarcodeToPositionMultiProtein::writeTask, this, mUnmappedWriter2));
 		
 	}
 
@@ -65,10 +64,8 @@ bool BarcodeToPositionMultiPE::process()
 		threads[t]->join();
 	}
 
-	if (writerThread1)
-		writerThread1->join();
-	if (writerThread2)
-		writerThread2->join();
+	if (mapInsertThread)
+		mapInsertThread->join();
 	if (unMappedWriterThread1)
 		unMappedWriterThread1->join();
 	if (unMappedWriterThread2)
@@ -78,19 +75,21 @@ bool BarcodeToPositionMultiPE::process()
 		loginfo("start to generate reports\n");
 
 	//merge result
-	vector<Result*> resultList;
+	vector<ProteinResult*> resultList;
 	for (int t = 0; t < mOptions->thread; t++){
 		resultList.push_back(results[t]);
 	}
-	Result* finalResult = Result::merge(resultList);
+	ProteinResult* finalResult = ProteinResult::merge(resultList);
 	finalResult->print();
 
-	
+	//dump gene expression matrix
+	GenerateGem* generateGem = new GenerateGem(&mapInserter->gemMap, mOptions->transBarcodeToPos.umiLen);
+	generateGem->umiCorrection();
+	string gemFile = mOptions->transBarcodeToPos.out1;
+	string rawGemFile = mOptions->transBarcodeToPos.out2;
+	generateGem->dumpGem(rawGemFile, gemFile, proteinBarcodeMap->proteinNameMap);
+
 	cout << resetiosflags(ios::fixed) << setprecision(2);
-	if (!mOptions->transBarcodeToPos.mappedDNBOutFile.empty()) {
-		cout << "mapped_dnbs: " << finalResult->mBarcodeProcessor->mDNB.size() << endl;
-		finalResult->dumpDNBs(mOptions->transBarcodeToPos.mappedDNBOutFile);
-	}
 	
 	//clean up
 	for (int t = 0; t < mOptions->thread; t++) {
@@ -103,10 +102,8 @@ bool BarcodeToPositionMultiPE::process()
 	delete[] threads;
 	delete[] results;
 
-	if (writerThread1)
-		delete writerThread1;
-	if (writerThread2)
-		delete writerThread2;
+	if (mapInsertThread)
+		delete mapInsertThread;
 	if (unMappedWriterThread1)
 		delete unMappedWriterThread1;
 	if (unMappedWriterThread2)
@@ -117,24 +114,19 @@ bool BarcodeToPositionMultiPE::process()
 	return true;
 }
 
-void BarcodeToPositionMultiPE::initOutput() {
-	mWriter1 = new WriterThread(mOptions->transBarcodeToPos.out1, mOptions->compression);
-	mWriter2 = new WriterThread(mOptions->transBarcodeToPos.out2, mOptions->compression);
+void BarcodeToPositionMultiProtein::initOutput() {
+	mapInserter = new MapInsertThread();
 	if (!mOptions->transBarcodeToPos.unmappedOutFile.empty() && !mOptions->transBarcodeToPos.unmappedOutFile2.empty()) {
 		mUnmappedWriter1 = new WriterThread(mOptions->transBarcodeToPos.unmappedOutFile, mOptions->compression);
 		mUnmappedWriter2 = new WriterThread(mOptions->transBarcodeToPos.unmappedOutFile2, mOptions->compression);
 	}
 }
 
-void BarcodeToPositionMultiPE::closeOutput()
+void BarcodeToPositionMultiProtein::closeOutput()
 {
-	if (mWriter1) {
-		delete mWriter1;
-		mWriter1 = NULL;
-	}
-	if (mWriter2) {
-		delete mWriter2;
-		mWriter2 = NULL;
+	if (mapInserter) {
+		delete mapInserter;
+		mapInserter = NULL;
 	}
 	if (mUnmappedWriter1) {
 		delete mUnmappedWriter1;
@@ -146,10 +138,9 @@ void BarcodeToPositionMultiPE::closeOutput()
 	}
 }
 
-bool BarcodeToPositionMultiPE::processPairEnd(ReadPairPack1* pack, Result* result)
+bool BarcodeToPositionMultiProtein::processPairEnd(ReadPairPack2* pack, ProteinResult* result)
 {
-	string outstr1;
-	string outstr2;
+	vector<uint64> outRecords;
 	string unmappedOut1;
 	string unmappedOut2;
 	bool hasPosition;
@@ -159,17 +150,13 @@ bool BarcodeToPositionMultiPE::processPairEnd(ReadPairPack1* pack, Result* resul
 		ReadPair* pair = pack->data[p];
 		Read* or1 = pair->mLeft;
 		Read* or2 = pair->mRight;
-		if (filterFixedSequence) {
-			fixedFiltered = fixedFilter->filter(or1, or2, result);
-			if (fixedFiltered) {
-				delete pair;
-				continue;
-			}
-		}
+		
 		hasPosition = result->mBarcodeProcessor->process(or1, or2);
 		if (hasPosition) {
-			outstr1 += or1->toString();
-			outstr2 += or2->toString();
+			uint64 key = encodeCIDGene(or1->x, or1->y, or2->proteinIndex);
+			uint64 value = or1->umiInt;
+			outRecords.push_back(key);
+			outRecords.push_back(value);
 		}
 		else if (mUnmappedWriter1 && mUnmappedWriter2) {
 			unmappedOut1 += or1->toString();
@@ -189,14 +176,10 @@ bool BarcodeToPositionMultiPE::processPairEnd(ReadPairPack1* pack, Result* resul
 		mUnmappedWriter2->input(udata2, unmappedOut2.size());
 	}
 	
-	if (mWriter1 && mWriter2 && (!outstr1.empty() || !outstr2.empty())) {
-		char* data1 = new char[outstr1.size()];
-		memcpy(data1, outstr1.c_str(), outstr1.size());
-		mWriter1->input(data1, outstr1.size());
-
-		char* data2 = new char[outstr2.size()];
-		memcpy(data2, outstr2.c_str(), outstr2.size());
-		mWriter2->input(data2, outstr2.size());
+	if (mapInserter && !outRecords.empty()) {
+		uint64* data = new uint64[outRecords.size()];
+		std::copy(outRecords.begin(), outRecords.end(), data);
+		mapInserter->input(data, outRecords.size());
 	}
 	mOutputMtx.unlock();
 	delete pack->data;
@@ -204,26 +187,26 @@ bool BarcodeToPositionMultiPE::processPairEnd(ReadPairPack1* pack, Result* resul
 	return true;
 }
 
-void BarcodeToPositionMultiPE::initPackRepositoey()
+void BarcodeToPositionMultiProtein::initPackRepositoey()
 {
-	mRepo.packBuffer = new ReadPairPack1 * [PACK_NUM_LIMIT];
-	memset(mRepo.packBuffer, 0, sizeof(ReadPairPack1*) * PACK_NUM_LIMIT);
+	mRepo.packBuffer = new ReadPairPack2 * [PACK_NUM_LIMIT];
+	memset(mRepo.packBuffer, 0, sizeof(ReadPairPack2*) * PACK_NUM_LIMIT);
 	mRepo.writePos = 0;
 	mRepo.readPos = 0;
 }
 
-void BarcodeToPositionMultiPE::destroyPackRepository() {
+void BarcodeToPositionMultiProtein::destroyPackRepository() {
 	delete mRepo.packBuffer;
 	mRepo.packBuffer = NULL;
 }
 
-void BarcodeToPositionMultiPE::producePack(ReadPairPack1* pack) {
+void BarcodeToPositionMultiProtein::producePack(ReadPairPack2* pack) {
 	mRepo.packBuffer[mRepo.writePos] = pack;
 	mRepo.writePos++;
 }
 
-void BarcodeToPositionMultiPE::consumePack(Result* result) {
-	ReadPairPack1* data;
+void BarcodeToPositionMultiProtein::consumePack(ProteinResult* result) {
+	ReadPairPack2* data;
 	mInputMutx.lock();
 	while (mRepo.writePos <= mRepo.readPos) {
 		usleep(1000);
@@ -240,7 +223,7 @@ void BarcodeToPositionMultiPE::consumePack(Result* result) {
 	processPairEnd(data, result);
 }
 
-void BarcodeToPositionMultiPE::producerTask() {
+void BarcodeToPositionMultiProtein::producerTask() {
 	if (mOptions->verbose)
 		loginfo("start to load data");
 	long lastReported = 0;
@@ -248,55 +231,65 @@ void BarcodeToPositionMultiPE::producerTask() {
 	long readNum = 0;
 	ReadPair** data = new ReadPair * [PACK_SIZE];
 	memset(data, 0, sizeof(ReadPair*) * PACK_SIZE);
-	FastqReaderPair reader(mOptions->transBarcodeToPos.in1, mOptions->transBarcodeToPos.in2, true);
 	int count = 0;
 	bool needToBreak = false;
-	while (true) {
-		ReadPair* read = reader.read();
-		if (!read || needToBreak) {
-			ReadPairPack1* pack = new ReadPairPack1;
-			pack->data = data;
-			pack->count = count;
-			producePack(pack);
-			data = NULL;
-			if (read) {
-				delete read;
-				read = NULL;
+	FastqReaderPair* readers[in1.size()];
+	for (int i = 0; i<in1.size(); i++){
+		string fq1 = in1[i];
+		string fq2 = in2[i];
+		readers[i] = new FastqReaderPair(fq1, fq2, true);
+		//cout << "########begin to read fastq file: " << endl;
+		while (true) {
+			ReadPair* read = readers[i]->read();
+			if (!read && i < in1.size()-1) {
+				break;
 			}
-			break;
-		}
-		data[count] = read;
-		count++;
-		if (mOptions->verbose && count + readNum >= lastReported + 1000000) {
-			lastReported = count + readNum;
-			string msg = "loaded " + to_string((lastReported / 1000000)) + "M read pairs";
-			loginfo(msg);
-		}
-		if (count == PACK_SIZE || needToBreak) {
-			ReadPairPack1* pack = new ReadPairPack1;
-			pack->data = data;
-			pack->count = count;
-			producePack(pack);
-			//re-initialize data for next pack
-			data = new ReadPair * [PACK_SIZE];
-			memset(data, 0, sizeof(ReadPair*) * PACK_SIZE);
-			// if the consumer is far behind this producer, sleep and wait to limit memory usage
-			while (mRepo.writePos - mRepo.readPos > PACK_IN_MEM_LIMIT) {
-				slept++;
-				usleep(100);
-			}
-			readNum += count;
-			// if the writer threads are far behind this producer, sleep and wait
-			// check this only when necessary
-			if (readNum % (PACK_SIZE * PACK_IN_MEM_LIMIT) == 0 && mWriter1) {
-				while ((mWriter1 && mWriter1->bufferLength() > PACK_IN_MEM_LIMIT) || (mWriter2 && mWriter2->bufferLength() > PACK_IN_MEM_LIMIT)) {
-					slept++;
-					usleep(1000);
+			if  (!read || needToBreak) {
+				ReadPairPack2* pack = new ReadPairPack2;
+				pack->data = data;
+				pack->count = count;
+				producePack(pack);
+				data = NULL;
+				if (read) {
+					delete read;
+					read = NULL;
 				}
+				break;
 			}
-			// reset count to 0
-			count = 0;
+			data[count] = read;
+			count++;
+			if (mOptions->verbose && count + readNum >= lastReported + 1000000) {
+				lastReported = count + readNum;
+				string msg = "loaded " + to_string((lastReported / 1000000)) + "M read pairs";
+				loginfo(msg);
+			}
+			if (count == PACK_SIZE || needToBreak) {
+				ReadPairPack2* pack = new ReadPairPack2;
+				pack->data = data;
+				pack->count = count;
+				producePack(pack);
+				//re-initialize data for next pack
+				data = new ReadPair * [PACK_SIZE];
+				memset(data, 0, sizeof(ReadPair*) * PACK_SIZE);
+				// if the consumer is far behind this producer, sleep and wait to limit memory usage
+				while (mRepo.writePos - mRepo.readPos > PACK_IN_MEM_LIMIT) {
+					slept++;
+					usleep(100);
+				}
+				readNum += count;
+				// if the writer threads are far behind this producer, sleep and wait
+				// check this only when necessary
+				if (readNum % (PACK_SIZE * PACK_IN_MEM_LIMIT) == 0 && mapInserter) {
+					while (mapInserter && mapInserter->bufferLength() > PACK_IN_MEM_LIMIT) {
+						slept++;
+						usleep(1000);
+					}
+				}
+				// reset count to 0
+				count = 0;
+			}
 		}
+		delete readers[i];
 	}
 	mProduceFinished = true;
 	if (mOptions->verbose) {
@@ -306,7 +299,7 @@ void BarcodeToPositionMultiPE::producerTask() {
 		delete[] data;
 }
 
-void BarcodeToPositionMultiPE::consumerTask(Result* result) {
+void BarcodeToPositionMultiProtein::consumerTask(ProteinResult* result) {
 	while (true) {
 		while (mRepo.writePos <= mRepo.readPos) {
 			if (mProduceFinished)
@@ -334,10 +327,8 @@ void BarcodeToPositionMultiPE::consumerTask(Result* result) {
 	}
 
 	if (mFinishedThreads == mOptions->thread) {
-		if (mWriter1)
-			mWriter1->setInputCompleted();
-		if (mWriter2)
-			mWriter2->setInputCompleted();
+		if (mapInserter)
+			mapInserter->setInputCompleted();
 		if (mUnmappedWriter1)
 			mUnmappedWriter1->setInputCompleted();
 		if (mUnmappedWriter2)
@@ -349,7 +340,8 @@ void BarcodeToPositionMultiPE::consumerTask(Result* result) {
 	}
 }
 
-void BarcodeToPositionMultiPE::writeTask(WriterThread* config) {
+
+void BarcodeToPositionMultiProtein::writeTask(WriterThread* config) {
 	while (true) {
 		if (config->isCompleted()) {
 			config->output();
@@ -360,6 +352,20 @@ void BarcodeToPositionMultiPE::writeTask(WriterThread* config) {
 
 	if (mOptions->verbose) {
 		string msg = config->getFilename() + " writer finished";
+		loginfo(msg);
+	}
+}
+
+void BarcodeToPositionMultiProtein::mapInsertTask(MapInsertThread* config){
+	while (true) {
+		if (config->isCompleted()){
+			config->output();
+			break;
+		}
+		config->output();
+	}
+	if (mOptions->verbose){
+		string msg = "map insert finished";
 		loginfo(msg);
 	}
 }

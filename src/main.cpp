@@ -9,6 +9,7 @@
 #include "barcodeToPositionMultiPE.h"
 #include "barcodeListMerge.h"
 #include "chipMaskFormatChange.h"
+#include "barcodeToPositionMultiProtein.h"
 #include "chipMaskMerge.h"
 #include <mutex>
 
@@ -30,6 +31,8 @@ int main(int argc, char* argv[]) {
 	cmd.add<string>("out2", 0, "fastq output file of read2", false, "");
 	cmd.add<string>("report", 0, "logging file path.", false, "");
 	cmd.add("PEout", 0, "if this option was given, PE reads with barcode tag will be writen");
+	cmd.add("protein", 0, "if this option was given, this program will process protein barcode sequence in the read2.");
+	cmd.add<string>("proteinBarcodeList", 0, "if option --protein was given, this option os requested", false, "");
 	cmd.add<int>("compression", 'z', "compression level for gzip output (1 ~ 9). 1 is fastest, 9 is smallest, default is 4.", false, 4);
 	cmd.add<string>("unmappedOut", 0, "output file path for barcode unmapped reads of read1, if this path isn't given, discard the reads.", false, "");
 	cmd.add<string>("unmappedOut2", 0, "output file path for barcode unmapped reads of read2, if this path isn't given, discard the reads.", false, "");
@@ -45,6 +48,9 @@ int main(int argc, char* argv[]) {
 	cmd.add<string>("fixedSequenceFile", 0, "file contianing the fixed sequences and the start position, one sequence per line in the format: TGCCTCTCAG\t-1. when position less than 0, means wouldn't specified", false, "");
 	cmd.add<long>("mapSize", 0, "bucket size of the new unordered_map.", false, 0);
 	cmd.add<int>("mismatch", 0, "max mismatch is allowed for barcode overlap find.", false, 0);
+	cmd.add<int>("proteinBarcodeMismatch", 0, "max mismatch is allowed for protein barcode overlap find.", false, 1);
+	cmd.add<int>("proteinBarcodeStart", 0 ,"protein barcode start position.", false, 0);
+	cmd.add<int>("proteinBarcodeLen", 0, "protein barcode length.", false, 15);
 	cmd.add<int>("action", 0, "chose one action you want to run [map_barcode_to_slide = 1, merge_barcode_list = 2, mask_format_change = 3, mask_merge = 4].", false, 1);
 	cmd.add<int>("thread", 'w', "number of thread that will be used to run.", false, 2);
 	cmd.add("verbose", 'V', "output verbose log information (i.e. when every 1M reads are processed).");
@@ -85,7 +91,11 @@ int main(int argc, char* argv[]) {
 	opt.transBarcodeToPos.fixedStart = cmd.get<int>("fixedStart");
 	opt.transBarcodeToPos.fixedSequenceFile = cmd.get<string>("fixedSequenceFile");
 	opt.transBarcodeToPos.PEout = cmd.exist("PEout");
-	
+	opt.transBarcodeToPos.proteinBarcodeList = cmd.get<string>("proteinBarcodeList");
+	opt.transBarcodeToPos.protein = cmd.exist("protein");
+	opt.transBarcodeToPos.proteinBarcodeMismatch = cmd.get<int>("proteinBarcodeMismatch");
+	opt.transBarcodeToPos.proteinBarcodeStart = cmd.get<int>("proteinBarcodeStart");
+	opt.transBarcodeToPos.proteinBarcodeLen = cmd.get<int>("proteinBarcodeLen");
 	stringstream ss;
 	for (int i = 0; i < argc; i++) {
 		ss << argv[i] << " ";
@@ -96,7 +106,11 @@ int main(int argc, char* argv[]) {
 	opt.validate();
 	
 	if (opt.actionInt == 1) {
-		if (opt.transBarcodeToPos.PEout){
+		if (opt.transBarcodeToPos.protein){
+			BarcodeToPositionMultiProtein barcodeToPositionMultiProtein(&opt);
+			barcodeToPositionMultiProtein.process();
+		}
+		else if (opt.transBarcodeToPos.PEout){
 			BarcodeToPositionMultiPE barcodeToPosMultiPE(&opt);
 			barcodeToPosMultiPE.process();
 		}else{
