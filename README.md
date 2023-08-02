@@ -16,6 +16,7 @@ This program can map barcode of stereomics-seq to stereomics-chip
 ## make the runnable program
 ```
 ##add the requested packages in your environment value or specify their path in Makefile by INCLUDE_DIRS and LIBRARY_DIRS
+
 cd ST_BarcodeMap
 make
 ```
@@ -66,8 +67,10 @@ options:
   #### mask format change
   ```
   #transfer mask file in binary format into text format
+
   ST_BarcodeMap-0.0.1 --in mask.bin --out mask.txt --action 3
 
-  #transfer mask file in h5ad format into text format
+  #transfer mask file in hdf5 format into text format
+
   ST_BarcodeMap-0.0.1 --in mask.h5 --out mask.txt --action 3
   ```
